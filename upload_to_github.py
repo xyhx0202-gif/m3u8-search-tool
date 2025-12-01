@@ -125,20 +125,15 @@ def main():
     print("🚀 M3U8视频搜索工具 - GitHub上传工具")
     print("=" * 50)
     
-    # 获取用户输入
-    username = input("请输入您的GitHub用户名: ").strip()
-    if not username:
-        username = "m3u8-search-tool"
-        print(f"使用默认用户名: {username}")
+    # 自动填充参数，避免交互式输入
+    username = "xyhx0202-gif"
+    print(f"使用GitHub用户名: {username}")
     
-    repo_name = input("请输入仓库名称 (默认为 m3u8-search-tool): ").strip()
-    if not repo_name:
-        repo_name = "m3u8-search-tool"
+    repo_name = "m3u8-search-tool"
+    print(f"使用仓库名称: {repo_name}")
     
-    email = input("请输入您的GitHub邮箱: ").strip()
-    if not email:
-        email = f"{username}@example.com"
-        print(f"使用默认邮箱: {email}")
+    email = f"{username}@example.com"
+    print(f"使用邮箱: {email}")
     
     remote_url = f"https://github.com/{username}/{repo_name}.git"
     
