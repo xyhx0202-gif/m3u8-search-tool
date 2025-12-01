@@ -1,0 +1,8 @@
+# Cloudflare Pages 路由规则
+
+# 将所有API请求重定向到后端（如果使用Cloudflare Workers）
+/api/* https://your-worker.your-username.workers.dev/api/:splat 200
+/v1/* https://your-worker.your-username.workers.dev/v1/:splat 200
+
+# 单页应用路由
+/* /index_simple.html 200

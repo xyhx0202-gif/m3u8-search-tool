@@ -1,0 +1,32 @@
+[build]
+  # 纯静态网站部署
+  command = ""
+  publish = "."
+  # 可选：指定构建输出目录（如果有构建步骤）
+  # publish = "dist"
+
+[build.environment]
+  # 可以设置Python版本
+  PYTHON_VERSION = "3.10"
+
+[prerender]
+  # 启用预渲染以提高SEO
+  enabled = true
+
+# 自定义域名（部署后在Cloudflare控制台设置）
+# [headers]
+# 路径模式匹配所有HTML文件
+# "/*.html" = {
+#   "Content-Type" = "text/html; charset=utf-8"
+# }
+
+# 缓存设置
+[caching]
+  # 默认缓存行为
+  enabled = true
+  # 忽略的路径模式
+  ignore_patterns = [
+    "/api/*",
+    "/v1/*",
+    "/*.json"
+  ]

@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U8视频搜索工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+      // Cloudflare Pages部署配置
+      const API_BASE_URL = ''; // 在Cloudflare Pages上，API请求将通过_redirects文件处理
+      const USE_CLOUDFLARE_WORKER = true; // 是否使用Cloudflare Worker处理API请求
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #667eea;
+        }
+        .search-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.3s;
+        }
+        .search-btn:hover {
+            transform: translateY(-2px);
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .results {
+            display: none;
+        }
+        .result-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .result-item:hover {
+            background: #e9ecef;
+        }
+        .player {
+            display: none;
+            margin-top: 20px;
+        }
+        .video-player {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .m3u8-url {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 5px;
+            word-break: break-all;
+            margin-bottom: 15px;
+        }
+        .episodes {
+            display: none;
+            margin-top: 20px;
+        }
+        .episode-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .episode-item {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .episode-item:hover {
+            background: #e9ecef;
+        }
+        .episode-item.active {
+            background: #667eea;
+            color: white;
+        }
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        
+        .video-info {
+            display: flex;
+            gap: 25px;
+            margin-bottom: 25px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #e3e8f0;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .video-info:hover {
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .video-cover {
+            flex-shrink: 0;
+            width: 220px;
+            height: 300px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .video-cover:hover {
+            border-color: #667eea;
+            transform: scale(1.02);
+        }
+        
+        .video-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+        
+        .video-cover:hover img {
+            transform: scale(1.05);
+        }
+        
+        .video-details {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .video-details h3 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            line-height: 1.3;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .video-description {
+            line-height: 1.8;
+            color: #4a5568;
+            font-size: 15px;
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            white-space: pre-line;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .video-description strong {
+            color: #2d3748;
+            font-weight: 600;
+            display: inline-block;
+            min-width: 60px;
+        }
+        
+        .video-description .info-line {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .video-description .info-line:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .video-description .info-title {
+            color: #2d3748;
+            font-weight: 600;
+            display: inline-block;
+            min-width: 50px;
+            margin-right: 10px;
+        }
+        
+        .video-description .info-content {
+            color: #4a5568;
+        }
+        
+        .video-description .synopsis {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            line-height: 1.7;
+            color: #4a5568;
+        }
+        
+        .no-cover {
+            font-size: 16px;
+            text-align: center;
+            padding: 30px 20px;
+            color: #718096;
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .no-cover small {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 8px;
+            opacity: 0.8;
+        }
+        
+        .no-cover.loading {
+            color: #667eea;
+            border-color: #667eea;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        
+        .no-cover.error {
+            color: #e53e3e;
+            border-color: #fc8181;
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+        }
+        
+        .no-cover.success {
+            color: #38a169;
+            border-color: #68d391;
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 M3U8视频搜索工具</h1>
+            <p>输入视频名称，一键获取M3U8播放地址</p>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="请输入视频名称...">
+            <button class="search-btn" onclick="searchVideo()">搜索</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在搜索，请稍候...</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="results" id="results">
+            <h3>搜索结果</h3>
+            <div id="resultsList"></div>
+        </div>
+        
+        <div class="player" id="player">
+            <button class="back-btn" onclick="backToSearch()">← 返回搜索</button>
+            
+            <div class="video-info" id="videoInfo">
+                <div class="video-cover" id="videoCover">
+                    <div class="no-cover">暂无封面</div>
+                </div>
+                <div class="video-details">
+                    <h3 id="videoTitle"></h3>
+                    <div class="video-description" id="videoDescription">
+                        暂无简介
+                    </div>
+                </div>
+            </div>
+            
+            <video class="video-player" id="videoPlayer" controls>
+                您的浏览器不支持视频播放
+            </video>
+            
+            <div class="episodes" id="episodes">
+                <h4>分集列表</h4>
+                <div class="episode-list" id="episodesList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 移除加密功能，直接使用原始URL
+        
+        // 生成API调用token - 修改为与后端匹配的格式
+        function generateApiToken() {
+            // 使用秒级时间戳（与后端一致）
+            const timestamp = Math.floor(Date.now() / 1000);
+            // 使用固定密钥部分（与后端API_SECRET_KEY[2:8]匹配）
+            const secretPart = '3U8V1d';
+            return timestamp + '_' + secretPart;
+        }
+
+        let currentVideo = null;
+        let currentEpisodes = [];
+        
+        // 通用API请求函数，支持Token过期自动重试和错误处理
+        function apiRequest(url, options = {}, retries = 2) {
+            // 确保headers对象存在
+            if (!options.headers) {
+                options.headers = {};
+            }
+            
+                // 使用完整的API URL
+            // 优先使用用户配置的服务器地址，或者使用默认值
+            const defaultServerUrl = window.API_BASE_URL || 'http://localhost:8888';
+            const fullUrl = url.startsWith('http') ? url : defaultServerUrl + url;
+            console.log('API请求URL:', fullUrl);
+            
+            // 设置API headers
+            options.headers['X-API-Key'] = 'm3u8_viewer_key';
+            options.headers['X-API-Token'] = generateApiToken();
+            
+            // 设置默认选项
+            options.mode = 'cors';
+            options.cache = 'no-cache';
+            options.credentials = 'same-origin';
+            
+            // 添加超时控制
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 增加超时时间到30秒
+            options.signal = controller.signal;
+            
+            return fetch(fullUrl, options)
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    
+                    // 检查响应状态
+                    if (!response.ok) {
+                        // 尝试获取错误详情
+                        return response.text().then(text => {
+                            try {
+                                const data = JSON.parse(text);
+                                throw new Error(data.error || `请求失败: ${response.status} ${response.statusText}`);
+                            } catch {
+                                throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+                            }
+                        });
+                    }
+                    
+                    // 检查是否为Token过期（401状态码且有error字段）
+                    return response.text().then(text => {
+                        try {
+                            const data = JSON.parse(text);
+                            if (response.status === 401 && data.error === 'Token expired') {
+                                // 重新生成Token并请求
+                                options.headers['X-API-Token'] = generateApiToken();
+                                return apiRequest(url, options);
+                            }
+                            return data;
+                        } catch (e) {
+                            throw new Error('无效的响应格式');
+                        }
+                    });
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    
+                    // 处理特定错误类型
+                    if (error.name === 'AbortError') {
+                        throw new Error('请求超时，请检查网络连接');
+                    }
+                    
+                    // 网络错误，尝试重试
+                    if ((error.message.includes('Failed to fetch') || error.message.includes('ERR_ABORTED')) && retries > 0) {
+                        console.log(`网络错误，尝试重试(${2 - retries + 1}/3)...`);
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                resolve(apiRequest(url, options, retries - 1));
+                            }, 1000);
+                        });
+                    }
+                    
+                    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_ABORTED')) {
+                        throw new Error('无法连接到服务器，请检查服务器是否正在运行');
+                    }
+                    throw error;
+                });
+        }
+
+        // 防抖函数
+        let searchTimeout;
+        function debouncedSearch(videoName) {
+            // 清除之前的定时器
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // 设置新的定时器
+            searchTimeout = setTimeout(() => {
+                showLoading(true);
+                hideError();
+                
+                apiRequest('/v1/query?q=' + encodeURIComponent(videoName))
+            .then(data => {
+                showLoading(false);
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                displayResults(data.results);
+            })
+            .catch(err => {
+                showLoading(false);
+                // 特殊处理速率限制错误
+                if (err.message.includes('Rate limit exceeded')) {
+                    showError('请求过于频繁，请稍后再试');
+                } else {
+                    showError('搜索失败: ' + err.message);
+                }
+            });
+            }, 500);
+        }
+        
+        function searchVideo() {
+            const videoName = document.getElementById('searchInput').value.trim();
+            if (!videoName) {
+                showError('请输入视频名称');
+                return;
+            }
+            
+            // 使用防抖版本的搜索
+            debouncedSearch(videoName);
+        }
+        
+        function displayResults(results) {
+            const list = document.getElementById('resultsList');
+            list.innerHTML = '';
+            
+            results.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `
+                    <strong>${r.title}</strong><br>
+                    <small>ID: ${r.video_id}</small>
+                `;
+                div.onclick = function() {
+                    selectVideo(r.video_id, r.title, r.play_url);
+                };
+                list.appendChild(div);
+            });
+            
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        function selectVideo(videoId, title, playUrl) {
+            currentVideo = {videoId, title, playUrl};
+            showLoading(true);
+            
+            apiRequest('/v1/stream?id=' + videoId + '&play_url=' + encodeURIComponent(playUrl))
+            .then(data => {
+                showLoading(false);
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                showPlayer(data.m3u8_url, title, data.cover, data.description);
+                if (data.episodes && data.episodes.length > 0) {
+                    currentEpisodes = data.episodes;
+                    showEpisodes(data.episodes, playUrl);
+                }
+            })
+            .catch(err => {
+                showLoading(false);
+                showError('获取失败: ' + err.message);
+            });
+        }
+        
+        function showPlayer(m3u8Url, title, coverUrl, description) {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('player').style.display = 'block';
+            
+            // 显示视频标题
+            document.getElementById('videoTitle').textContent = title;
+            
+            // 显示视频封面（优化加载和错误处理）
+            const coverElement = document.getElementById('videoCover');
+            if (coverUrl && coverUrl.trim() !== '') {
+                // 创建图片对象进行预加载和错误处理
+                const img = new Image();
+                img.src = coverUrl;
+                img.alt = title;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'cover';
+                
+                img.onload = function() {
+                    // 图片加载成功
+                    coverElement.innerHTML = '';
+                    coverElement.appendChild(img);
+                };
+                
+                img.onerror = function() {
+                    // 图片加载失败
+                    coverElement.innerHTML = '<div class="no-cover error">封面加载失败<br><small>尝试重新加载</small></div>';
+                    // 添加重试功能
+                    setTimeout(() => {
+                        const retryImg = new Image();
+                        retryImg.src = coverUrl + '?t=' + new Date().getTime(); // 添加时间戳避免缓存
+                        retryImg.alt = title;
+                        retryImg.style.width = '100%';
+                        retryImg.style.height = '100%';
+                        retryImg.style.objectFit = 'cover';
+                        
+                        retryImg.onload = function() {
+                            coverElement.innerHTML = '';
+                            coverElement.appendChild(retryImg);
+                        };
+                        
+                        retryImg.onerror = function() {
+                            coverElement.innerHTML = '<div class="no-cover error">封面加载失败<br><small>请检查网络连接</small></div>';
+                        };
+                        
+                        coverElement.innerHTML = '<div class="no-cover loading">正在重新加载封面...</div>';
+                    }, 2000);
+                };
+                
+                // 显示加载中状态
+                coverElement.innerHTML = '<div class="no-cover loading">封面加载中...</div>';
+            } else {
+                coverElement.innerHTML = '<div class="no-cover">暂无封面</div>';
+            }
+            
+            // 显示视频简介（格式化显示）
+            const descElement = document.getElementById('videoDescription');
+            if (description && description.trim() !== '') {
+                descElement.innerHTML = formatVideoDescription(description);
+            } else {
+                descElement.textContent = '暂无简介';
+            }
+            
+            const player = document.getElementById('videoPlayer');
+            
+            // 销毁之前的HLS实例
+            if (window.hlsInstance) {
+                window.hlsInstance.destroy();
+            }
+            
+            // 使用HLS.js播放M3U8
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                window.hlsInstance = hls;
+                // 直接使用原始M3U8地址
+                hls.loadSource(m3u8Url);
+                hls.attachMedia(player);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    player.play();
+                });
+            } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari原生支持
+                player.src = m3u8Url;
+                player.addEventListener('loadedmetadata', function() {
+                    player.play();
+                });
+            } else {
+                showError('您的浏览器不支持M3U8视频播放');
+            }
+        }
+        
+        function showEpisodes(episodes, currentUrl) {
+            const list = document.getElementById('episodesList');
+            list.innerHTML = '';
+            
+            episodes.forEach((ep, i) => {
+                const div = document.createElement('div');
+                div.className = 'episode-item';
+                if (ep.url === currentUrl) div.classList.add('active');
+                div.innerHTML = `
+                    ${ep.title}
+                `;
+                div.onclick = function() {
+                    playEpisode(ep.url, i);
+                };
+                list.appendChild(div);
+            });
+            
+            document.getElementById('episodes').style.display = 'block';
+        }
+        
+        function playEpisode(url, index) {
+            showLoading(true);
+            
+            apiRequest('/v1/episodes?id=' + currentVideo.videoId + '&episode=' + encodeURIComponent(url))
+            .then(data => {
+                showLoading(false);
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                const player = document.getElementById('videoPlayer');
+                
+                // 销毁之前的HLS实例
+                if (window.hlsInstance) {
+                    window.hlsInstance.destroy();
+                }
+                
+                // 使用HLS.js播放M3U8
+                if (Hls.isSupported()) {
+                    const hls = new Hls();
+                    window.hlsInstance = hls;
+                    // 直接使用原始M3U8地址
+                    hls.loadSource(data.m3u8_url);
+                    hls.attachMedia(player);
+                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        player.play();
+                    });
+                } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Safari原生支持
+                    player.src = data.m3u8_url;
+                    player.addEventListener('loadedmetadata', function() {
+                        player.play();
+                    });
+                } else {
+                    showError('您的浏览器不支持M3U8视频播放');
+                }
+                
+                // 更新激活状态
+                document.querySelectorAll('.episode-item').forEach((item, i) => {
+                    item.classList.toggle('active', i === index);
+                });
+            })
+            .catch(err => {
+                showLoading(false);
+                showError('切换失败: ' + err.message);
+            });
+        }
+        
+        function backToSearch() {
+            document.getElementById('player').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            
+            const player = document.getElementById('videoPlayer');
+            player.pause();
+            player.src = '';
+            
+            // 销毁HLS实例
+            if (window.hlsInstance) {
+                window.hlsInstance.destroy();
+                window.hlsInstance = null;
+            }
+        }
+        
+
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        function showError(msg) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = msg;
+            errorDiv.style.display = 'block';
+            
+            // 添加错误类型识别和样式
+            if (msg.includes('超时') || msg.includes('网络')) {
+                errorDiv.className = 'error network';
+            } else if (msg.includes('Token') || msg.includes('验证')) {
+                errorDiv.className = 'error auth';
+            } else {
+                errorDiv.className = 'error';
+            }
+            
+            // 3秒后自动隐藏错误信息
+            setTimeout(() => {
+                hideError();
+            }, 5000);
+        }
+        
+        function hideError() {
+            const errorDiv = document.getElementById('error');
+            errorDiv.style.display = 'none';
+            errorDiv.className = 'error'; // 重置样式
+        }
+        
+        // 回车搜索
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchVideo();
+        });
+        
+        // 格式化视频简介信息
+        function formatVideoDescription(description) {
+            // 解析基本信息
+            let region = '';
+            let year = '';
+            let actors = '';
+            let director = '';
+            let synopsis = '';
+            
+            // 提取地区信息（避免重复）
+            const regionMatch = description.match(/地区[：:]\s*([^\s\n年份]+)/);
+            if (regionMatch) region = regionMatch[1].trim();
+            
+            // 提取年份信息
+            const yearMatch = description.match(/年份[：:]\s*(\d{4})/);
+            if (yearMatch) year = yearMatch[1];
+            
+            // 提取主演信息（只提取到简介前的内容）
+            const actorsMatch = description.match(/主演[：:]\s*([^\n简介]+)/);
+            if (actorsMatch) actors = actorsMatch[1].trim();
+            
+            // 提取导演信息
+            const directorMatch = description.match(/导演[：:]\s*([^\n]+)/);
+            if (directorMatch) director = directorMatch[1].trim();
+            
+            // 提取简介信息（去除重复的地区年份信息）
+            const synopsisMatch = description.match(/简介[：:]\s*([^]+)/);
+            if (synopsisMatch) {
+                synopsis = synopsisMatch[1].trim();
+                // 去除简介中重复的地区年份信息
+                synopsis = synopsis.replace(/分类[：:][^地区]*地区[：:][^年份]*年份[：:][^\n]*/, '').trim();
+                if (!synopsis) synopsis = '暂无详细剧情介绍';
+            }
+            
+            // 构建格式化HTML
+            let html = '';
+            
+            // 基本信息行
+            if (region || year) {
+                html += `<div class="info-line">`;
+                if (region) html += `<span class="info-title">地区：</span><span class="info-content">${region}</span> `;
+                if (year) html += `<span class="info-title">年份：</span><span class="info-content">${year}</span>`;
+                html += `</div>`;
+            }
+            
+            // 主演信息（清理多余逗号和换行符）
+            if (actors) {
+                let cleanActors = actors.replace(/,,+/g, ',').replace(/\n/g, ' ').trim();
+                if (cleanActors) {
+                    html += `<div class="info-line">`;
+                    html += `<span class="info-title">主演：</span><span class="info-content">${cleanActors}</span>`;
+                    html += `</div>`;
+                }
+            }
+            
+            // 导演信息
+            if (director) {
+                html += `<div class="info-line">`;
+                html += `<span class="info-title">导演：</span><span class="info-content">${director}</span>`;
+                html += `</div>`;
+            }
+            
+            // 简介信息
+            if (synopsis) {
+                html += `<div class="synopsis">`;
+                html += `<span class="info-title">简介：</span>`;
+                html += `<span class="info-content">${synopsis}</span>`;
+                html += `</div>`;
+            }
+            
+            // 如果没有解析到任何信息，返回原始内容
+            if (!html) {
+                return `<div class="info-content">${description}</div>`;
+            }
+            
+            return html;
+        }
+    </script>
+</body>
+</html>
