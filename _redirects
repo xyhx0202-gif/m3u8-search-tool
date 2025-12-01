@@ -1,5 +1,8 @@
 # Cloudflare Pages 路由规则
 
+# 处理不带.html扩展名的index_simple路径
+/index_simple /index_simple.html 200
+
 # 将所有API请求重定向到Cloudflare Worker
 /api/* /api/:splat 200
 /v1/* /api/v1/:splat 200
