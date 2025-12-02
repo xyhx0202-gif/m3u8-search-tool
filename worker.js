@@ -60,6 +60,18 @@ async function handleRequest(request) {
     });
   }
   
+  // 验证API token
+  const apiToken = request.headers.get('X-API-Token');
+  if (!validateApiToken(apiToken)) {
+    return new Response(JSON.stringify({ 
+      error: 'Token expired',
+      new_token: generateApiToken() 
+    }), {
+      status: 401,
+      headers: corsHeaders
+    });
+  }
+  
   try {
     // 处理API路由 - 支持前端使用的/v1/query路径和标准的/api/search路径
     if (path.startsWith('/api/search') || path.startsWith('/v1/query')) {
@@ -154,4 +166,31 @@ addEventListener('fetch', event => {
 function generateApiToken() {
   const timestamp = Math.floor(Date.now() / 1000);
   return `${timestamp}_${API_SECRET_KEY.substring(2, 8)}`;
+}
+
+// 验证API token的辅助函数
+function validateApiToken(token) {
+  if (!token || typeof token !== 'string') {
+    return false;
+  }
+  
+  const parts = token.split('_');
+  if (parts.length !== 2) {
+    return false;
+  }
+  
+  const [timestampStr, secretPart] = parts;
+  const timestamp = parseInt(timestampStr, 10);
+  
+  // 检查时间戳是否有效且未过期（24小时有效期）
+  const currentTime = Math.floor(Date.now() / 1000);
+  const tokenAge = currentTime - timestamp;
+  
+  // 允许token在24小时内有效
+  if (isNaN(timestamp) || tokenAge > 86400 || tokenAge < 0) {
+    return false;
+  }
+  
+  // 验证密钥部分
+  return secretPart === API_SECRET_KEY.substring(2, 8);
 }
