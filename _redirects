@@ -1,8 +1,8 @@
 # Cloudflare Pages 路由规则
 
-# 只保留基本的API路由规则
-/api/* /api/:splat 200
-/v1/* /v1/:splat 200
+# API请求重定向到Worker
+/api/* https://m3u8-search-tool.pages.dev/api/:splat 200
+/v1/* https://m3u8-search-tool.pages.dev/v1/:splat 200
 
-# 移除通配符重定向，避免循环
-# Cloudflare Pages会默认处理静态文件
+# 单页应用路由处理
+/* /index_simple.html 200

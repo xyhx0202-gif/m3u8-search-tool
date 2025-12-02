@@ -1,105 +1,103 @@
-// Cloudflare Worker 代码
-// 用于处理API请求并代理到后端服务
-
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request));
-});
+// Cloudflare Worker 脚本用于 M3U8 搜索工具
 
 // API密钥验证
 const API_SECRET_KEY = 'Xm3U8V1d30p1D'; // 与web_app.py中的密钥保持一致
 const API_KEY = 'm3u8_viewer_key'; // 与前端使用的API密钥保持一致
 
-// 模拟API响应（实际部署时应替换为真实的后端逻辑）
+// 后端服务器地址（在实际部署时可能需要调整）
+const BACKEND_SERVER = 'http://localhost:8888'; // 或其他后端地址
+
+// 处理请求的主函数
 async function handleRequest(request) {
+  // 获取请求方法和URL
+  const method = request.method;
   const url = new URL(request.url);
   const path = url.pathname;
+  
+  // 添加 CORS 头
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, X-API-Token',
+    'Content-Type': 'application/json'
+  };
+  
+  // 处理 OPTIONS 请求
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 204
+    });
+  }
   
   // 检查API密钥
   const apiKey = request.headers.get('X-API-Key');
   if (!apiKey || apiKey !== API_KEY) {
     return new Response(JSON.stringify({ error: 'Forbidden: Invalid API key' }), {
       status: 403,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders
     });
   }
   
-  // 处理API请求
-  if (path.startsWith('/api/search') || path.startsWith('/v1/query')) {
-    // 搜索API处理
-    const query = url.searchParams.get('q') || url.searchParams.get('video_name') || '';
-    if (!query) {
-      return new Response(JSON.stringify({ error: 'Missing search query' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
+  try {
+    // 构建后端请求URL
+    const backendUrl = BACKEND_SERVER + path + url.search;
+    console.log(`Forwarding request to: ${backendUrl}`);
+    
+    // 创建后端请求选项
+    const requestHeaders = new Headers(request.headers);
+    const backendRequest = new Request(backendUrl, {
+      method: method,
+      headers: requestHeaders,
+      body: method === 'POST' ? await request.clone().text() : null
+    });
+    
+    // 发送请求到后端
+    const response = await fetch(backendRequest);
+    
+    // 检查后端响应状态
+    if (!response.ok) {
+      return new Response(JSON.stringify({
+        error: `Backend error: ${response.status} ${response.statusText}`
+      }), {
+        status: response.status,
+        headers: corsHeaders
       });
     }
     
-    // 模拟搜索结果（实际部署时应替换为真实的搜索逻辑）
-    return new Response(JSON.stringify({
-      status: 'success',
-      results: [
-        {
-          id: '1',
-          title: `搜索结果: ${query}`,
-          cover: 'https://example.com/cover1.jpg',
-          play_url: '/api/stream?id=1'
-        },
-        {
-          id: '2',
-          title: `相关视频: ${query}`,
-          cover: 'https://example.com/cover2.jpg',
-          play_url: '/api/stream?id=2'
+    // 尝试解析JSON响应
+    try {
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        headers: corsHeaders
+      });
+    } catch (jsonError) {
+      // 如果响应不是JSON，返回原始内容
+      const text = await response.text();
+      return new Response(text, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': response.headers.get('Content-Type') || 'text/plain'
         }
-      ]
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
-  if (path.startsWith('/api/get_m3u8') || path.startsWith('/v1/stream')) {
-    // 获取M3U8链接API处理
-    const videoId = url.searchParams.get('video_id') || url.searchParams.get('id') || '';
-    if (!videoId) {
-      return new Response(JSON.stringify({ error: 'Missing video ID' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    // 模拟M3U8链接（实际部署时应替换为真实的链接获取逻辑）
+  } catch (error) {
+    // 处理错误
+    console.error('Request error:', error);
     return new Response(JSON.stringify({
-      status: 'success',
-      m3u8_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-      title: `视频ID: ${videoId}`,
-      cover: 'https://example.com/cover.jpg',
-      episodes: [
-        { id: '1', title: '第1集', episode_url: `/api/episodes?episode=1` },
-        { id: '2', title: '第2集', episode_url: `/api/episodes?episode=2` }
-      ]
+      error: '服务暂时不可用，请稍后再试',
+      details: error.message
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      status: 500,
+      headers: corsHeaders
     });
   }
-  
-  if (path.startsWith('/api/get_episode_m3u8') || path.startsWith('/v1/episodes')) {
-    // 获取剧集M3U8链接API处理
-    const episodeUrl = url.searchParams.get('episode_url') || url.searchParams.get('episode') || '';
-    
-    // 模拟剧集M3U8链接
-    return new Response(JSON.stringify({
-      status: 'success',
-      m3u8_url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
-  // 默认返回404
-  return new Response(JSON.stringify({ error: 'Not found' }), {
-    status: 404,
-    headers: { 'Content-Type': 'application/json' }
-  });
 }
+
+// 监听请求事件
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
 
 // 生成API token的辅助函数
 function generateApiToken() {

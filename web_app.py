@@ -719,19 +719,25 @@ def main():
     # 创建简化的HTML页面
     create_simple_html()
     
-    print(f"使用端口: {PORT}")
+    # 获取端口配置，支持环境变量配置（用于Cloudflare Pages部署环境）
+    port = int(os.environ.get('PORT', PORT))
+    print(f"使用端口: {port}")
     
     try:
         # 创建一个可以重用地址的服务器类
         socketserver.TCPServer.allow_reuse_address = True
         
-        server_address = ("", PORT)
+        server_address = ("", port)
         print(f"准备创建服务器实例，地址: {server_address}")
         
         # 创建服务器实例
         with socketserver.TCPServer(server_address, M3U8SearchHandler) as httpd:
+            # 设置请求超时（提高稳定性）
+            httpd.timeout = 60
+            
             print(f"🚀 M3U8搜索工具已启动")
-            print(f"📱 访问地址: http://localhost:{PORT}")
+            print(f"📱 访问地址: http://localhost:{port}")
+            print(f"🌐 Cloudflare Pages 部署地址: https://m3u8-search-tool.pages.dev/")
             print(f"💡 按 Ctrl+C 停止服务器")
             print("服务器开始监听请求...")
             
@@ -740,8 +746,11 @@ def main():
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("\n👋 服务器已停止")
+            except Exception as e:
+                print(f"服务器运行错误: {str(e)}")
+                httpd.server_close()
     except Exception as e:
-        print(f"服务器错误: {str(e)}")
+        print(f"服务器初始化错误: {str(e)}")
         import traceback
         traceback.print_exc()
 
