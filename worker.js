@@ -78,7 +78,7 @@ async function handleRequest(request) {
     }
     
     // 处理API路由 - 支持前端使用的/v1/query路径和标准的/api/search路径
-    else if (path.startsWith('/api/search') || path.startsWith('/v1/query')) {
+    else if (path.startsWith('/api/search') || path.startsWith('/v1/query') || path.startsWith('/v1/search')) {
       // 获取搜索关键词
       const searchTerm = url.searchParams.get('q') || '';
       
