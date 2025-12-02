@@ -44,9 +44,7 @@ def setup_git_config(username, email):
 def initialize_git_repo():
     """初始化Git仓库"""
     run_command("git init")
-    run_command("git add .")
-    run_command("git commit -m \"Initial commit\"")
-    print("Git仓库已初始化并完成首次提交")
+    print("Git仓库已初始化")
 
 def add_remote_repo(remote_url):
     """添加远程仓库"""
@@ -78,6 +76,8 @@ def push_to_github():
 
 def generate_manual_instructions(username, repo_name):
     """生成手动操作指南"""
+    # 获取当前目录
+    current_dir = os.getcwd()
     instructions = f"""
 📋 手动上传指南
 
@@ -89,12 +89,12 @@ def generate_manual_instructions(username, repo_name):
    - 不要初始化README.md
 3. 使用Git命令行（如果已安装）:
    ```bash
-   cd d:\3
+   cd {current_dir}
    git init
    git config --global user.name "{username}"
    git config --global user.email "{username}@example.com"
    git add .
-   git commit -m "Initial commit"
+   git commit -m "修复路由规则和配置文件"
    git remote add origin https://github.com/{username}/{repo_name}.git
    git branch -M main
    git push -u origin main
@@ -102,7 +102,7 @@ def generate_manual_instructions(username, repo_name):
 4. 或者使用GitHub Desktop:
    - 下载并安装: https://desktop.github.com/
    - 点击"Add Existing Repository"
-   - 选择"d:\3"文件夹
+   - 选择"{current_dir}"文件夹
    - 点击"Publish repository"
    - 填写仓库信息并发布
 
@@ -115,11 +115,12 @@ def generate_manual_instructions(username, repo_name):
    """
     
     # 保存指南到文件
-    with open(r"d:\3\MANUAL_UPLOAD_GUIDE.md", "w", encoding="utf-8") as f:
+    manual_file = os.path.join(current_dir, "MANUAL_UPLOAD_GUIDE.md")
+    with open(manual_file, "w", encoding="utf-8") as f:
         f.write(instructions)
     
     print(instructions)
-    print("\n指南已保存到: d:\3\MANUAL_UPLOAD_GUIDE.md")
+    print(f"\n指南已保存到: {manual_file}")
 
 def main():
     print("🚀 M3U8视频搜索工具 - GitHub上传工具")
@@ -136,31 +137,49 @@ def main():
     print(f"使用邮箱: {email}")
     
     remote_url = f"https://github.com/{username}/{repo_name}.git"
+    current_dir = os.getcwd()
     
     print(f"\n准备上传到: {remote_url}")
+    print(f"当前工作目录: {current_dir}")
     print("请确保您已经在GitHub上创建了这个仓库，或者准备使用上述用户名和仓库名创建新仓库")
     
-    # 检查Git安装
-    if check_git_installed():
+    # 检查是否已经是Git仓库
+    git_dir = os.path.join(current_dir, ".git")
+    if not os.path.isdir(git_dir):
+        print("\n检测到这不是一个Git仓库，需要初始化")
+        if check_git_installed():
+            # 设置Git配置
+            setup_git_config(username, email)
+            
+            # 初始化仓库
+            initialize_git_repo()
+            
+            # 添加远程仓库
+            add_remote_repo(remote_url)
+    else:
+        print("\n检测到这已经是一个Git仓库")
         # 设置Git配置
         setup_git_config(username, email)
         
-        # 初始化仓库
-        initialize_git_repo()
-        
-        # 添加远程仓库
-        add_remote_repo(remote_url)
-        
-        # 推送代码
-        success = push_to_github()
-        
-        if not success:
-            # 生成手动指南
-            generate_manual_instructions(username, repo_name)
-    else:
-        # Git未安装，生成手动指南
-        print("\n由于Git未安装，无法执行自动上传操作")
+        # 检查是否已经有远程仓库配置
+        result = run_command("git remote -v")
+        if result and "origin" not in result.stdout:
+            add_remote_repo(remote_url)
+    
+    # 添加所有修改的文件
+    run_command("git add .")
+    
+    # 提交更改
+    run_command("git commit -m \"修复路由规则和配置文件，解决重定向循环问题\"")
+    
+    # 推送代码
+    success = push_to_github()
+    
+    if not success:
+        # 生成手动指南
         generate_manual_instructions(username, repo_name)
+    else:
+        print("\n上传成功！Cloudflare Pages应该会自动部署这些更改")
     
     print("\n完成！请按照上述指南完成GitHub仓库上传")
 

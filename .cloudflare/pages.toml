@@ -10,8 +10,8 @@
   PYTHON_VERSION = "3.10"
 
 [prerender]
-  # 启用预渲染以提高SEO
-  enabled = true
+  # 禁用预渲染以避免潜在的路由冲突
+  enabled = false
 
 # 自定义域名（部署后在Cloudflare控制台设置）
 # [headers]

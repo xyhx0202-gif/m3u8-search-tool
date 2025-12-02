@@ -1,8 +1,19 @@
 # Cloudflare Pages 路由规则
 
-# 将所有API请求重定向到Cloudflare Worker
+# 保持API请求不变
 /api/* /api/:splat 200
 /v1/* /v1/:splat 200
 
-# 单页应用路由规则
-/* /index_simple.html 200
+# 静态资源不重定向
+/*.js /:splat 200
+/*.css /:splat 200
+/*.png /:splat 200
+/*.jpg /:splat 200
+/*.ico /:splat 200
+
+# 特定路径直接访问
+/index_simple.html /index_simple.html 200
+
+# 只对非API、非静态资源的路径进行SPA路由
+# 注意：避免对根路径使用通配符重定向，防止循环
+/ /index_simple.html 200
