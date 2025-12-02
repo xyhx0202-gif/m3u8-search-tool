@@ -1,8 +1,4 @@
 # Cloudflare Pages 路由规则
 
-# API请求重定向到Worker
-/api/* https://m3u8-search-tool.pages.dev/api/:splat 200
-/v1/* https://m3u8-search-tool.pages.dev/v1/:splat 200
-
 # 单页应用路由处理
 /* /index_simple.html 200
