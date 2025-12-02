@@ -398,7 +398,7 @@
             
                 // 使用完整的API URL
             // 优先使用用户配置的服务器地址，或者使用默认值
-            const defaultServerUrl = window.API_BASE_URL || 'http://localhost:8888';
+            const defaultServerUrl = window.API_BASE_URL || 'https://m3u8-search-tool.pages.dev/:8888';
             const fullUrl = url.startsWith('http') ? url : defaultServerUrl + url;
             console.log('API请求URL:', fullUrl);
             
