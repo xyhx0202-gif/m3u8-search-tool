@@ -73,9 +73,10 @@ def check_rate_limit(client_ip):
     return True
 
 def encrypt_m3u8_url(url):
-    """简化的M3U8地址处理"""
-    # 不再进行加密混淆，直接返回原始URL
-    return url
+    """加密M3U8地址（简单实现）"""
+    # 这里只是一个简单的演示，实际项目中可以使用更复杂的加密算法
+    import base64
+    return base64.b64encode(url.encode()).decode()
 
 def decrypt_m3u8_url(encrypted_url):
     """简化的M3U8地址处理"""
@@ -684,9 +685,9 @@ class M3U8SearchHandler(http.server.SimpleHTTPRequestHandler):
             video_info = self.get_video_info(video_id)
         
         # 加密M3U8地址
-            encrypted_m3u8_url = encrypt_m3u8_url(m3u8_urls[0])
-            
-            return {
+        encrypted_m3u8_url = encrypt_m3u8_url(m3u8_urls[0])
+        
+        return {
             'success': True,
             'm3u8_url': encrypted_m3u8_url,
             'cover': video_info['cover'],
