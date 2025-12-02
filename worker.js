@@ -65,8 +65,20 @@ async function handleRequest(request) {
   */
   
   try {
+    // 简单的测试端点
+    if (path === '/api/test' || path === '/v1/test') {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'API is working!',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: corsHeaders,
+        status: 200
+      });
+    }
+    
     // 处理API路由 - 支持前端使用的/v1/query路径和标准的/api/search路径
-    if (path.startsWith('/api/search') || path.startsWith('/v1/query')) {
+    else if (path.startsWith('/api/search') || path.startsWith('/v1/query')) {
       // 获取搜索关键词
       const searchTerm = url.searchParams.get('q') || '';
       
