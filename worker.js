@@ -77,37 +77,85 @@ async function handleRequest(request) {
       });
     }
     
-    // 处理API路由 - 支持前端使用的/v1/query路径和标准的/api/search路径
-    else if (path.startsWith('/api/search') || path.startsWith('/v1/query') || path.startsWith('/v1/search')) {
-      // 获取搜索关键词
-      const searchTerm = url.searchParams.get('q') || '';
+        // 处理所有API路由 - 确保任何路径都能被正确处理
+    else if (path.startsWith('/api/') || path.startsWith('/v1/')) {
+      console.log('API请求到达:', { path, method: request.method });
       
-      // 简单的搜索逻辑（实际应用中可能需要更复杂的处理）
-      let searchResults = mockM3U8Data.movies;
-      if (searchTerm) {
-        searchResults = mockM3U8Data.movies.filter(movie => 
-          movie.title.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      // 特殊处理测试端点
+      if (path === '/api/test' || path === '/v1/test') {
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'API服务正常运行',
+          timestamp: new Date().toISOString(),
+          endpoint: path
+        }), {
+          headers: corsHeaders,
+          status: 200
+        });
       }
       
-      // 转换数据格式，确保返回的数据格式与前端期望一致
-      const formattedResults = searchResults.map((movie, index) => ({
-        video_id: `video_${index + 1}`, // 生成video_id
-        title: movie.title,
-        play_url: movie.url, // 使用现有url作为play_url
-        quality: movie.quality,
-        size: movie.size
-      }));
+      // 处理搜索相关端点
+      if (path.includes('search') || path.includes('query')) {
+        // 获取搜索关键词
+        const searchTerm = url.searchParams.get('q') || '';
+        console.log('搜索请求:', { searchTerm });
+        
+        // 简单的搜索逻辑
+        let searchResults = mockM3U8Data.movies;
+        if (searchTerm) {
+          searchResults = mockM3U8Data.movies.filter(movie => 
+            movie.title.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+        
+        // 转换数据格式
+        const formattedResults = searchResults.map((movie, index) => ({
+          video_id: `video_${index + 1}`,
+          title: movie.title,
+          play_url: movie.url,
+          quality: movie.quality,
+          size: movie.size
+        }));
+        
+        const responseData = {
+          success: true,
+          query: searchTerm,
+          results: formattedResults,
+          total: formattedResults.length,
+          endpoint: path
+        };
+        
+        console.log('返回搜索结果:', { total: responseData.total });
+        return new Response(JSON.stringify(responseData), {
+          headers: corsHeaders,
+          status: 200
+        });
+      }
       
-      // 返回搜索结果 - 格式匹配前端预期
+      // 处理流播放端点
+      if (path.includes('stream')) {
+        const videoId = url.searchParams.get('id') || '';
+        return new Response(JSON.stringify({
+          success: true,
+          video_id: videoId,
+          stream_url: `https://example.com/stream/${videoId}.m3u8`,
+          timestamp: new Date().toISOString(),
+          endpoint: path
+        }), {
+          headers: corsHeaders,
+          status: 200
+        });
+      }
+      
+      // 对于其他未明确处理的API端点，返回404错误
       return new Response(JSON.stringify({
-        success: true,
-        query: searchTerm,
-        results: formattedResults,
-        total: formattedResults.length
+        success: false,
+        error: 'Endpoint not found',
+        endpoint: path,
+        available_endpoints: ['/api/test', '/v1/test', '/api/search', '/v1/query', '/v1/search', '/v1/stream']
       }), {
         headers: corsHeaders,
-        status: 200
+        status: 404
       });
     }
     
