@@ -1,4 +1,4 @@
 # Cloudflare Pages 路由规则
 
-# 单页应用路由处理
-/* /index_simple.html 200
+# 移除所有复杂的重定向规则
+# 保留空文件以避免默认重定向行为
